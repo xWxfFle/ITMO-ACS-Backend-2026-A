@@ -9,7 +9,6 @@ import {
 import { db } from "../db/client";
 import { getAuthUser } from "../lib/auth";
 import { apiError } from "../lib/errors";
-import { mapVacancy } from "../lib/mappers";
 
 export const vacanciesRoutes = new Elysia({ name: "vacancies" })
   .get(
@@ -41,13 +40,13 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
           companyId: v.companyId,
           companyName: v.company.name,
           title: v.title,
-          salaryMin: v.salaryMin ?? undefined,
-          salaryMax: v.salaryMax ?? undefined,
+          salaryMin: v.salaryMin,
+          salaryMax: v.salaryMax,
           currency: v.currency,
           industryId: v.industryId,
           experienceLevelId: v.experienceLevelId,
-          status: v.status as "draft" | "published" | "closed",
-          publishedAt: v.publishedAt?.toISOString(),
+          status: v.status,
+          publishedAt: v.publishedAt,
         })),
         total,
         page,
@@ -84,7 +83,7 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
         set.status = 404;
         return apiError("NOT_FOUND", "Вакансия не найдена");
       }
-      return mapVacancy(vacancy);
+      return vacancy;
     },
     {
       detail: {
@@ -132,7 +131,7 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
         },
       });
       set.status = 201;
-      return mapVacancy(created);
+      return created;
     },
     {
       detail: {
@@ -196,7 +195,7 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
             body.status === "published" && !existing.publishedAt ? new Date() : undefined,
         },
       });
-      return mapVacancy(updated);
+      return updated;
     },
     {
       detail: {

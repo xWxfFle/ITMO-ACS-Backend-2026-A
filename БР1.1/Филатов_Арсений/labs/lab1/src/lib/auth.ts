@@ -1,4 +1,12 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "../db/client";
+
+export type UserWithRole = Prisma.UserGetPayload<{ include: { role: true } }>;
+
+export const userWithoutPassword = (user: UserWithRole) => {
+  const { passwordHash: _, ...rest } = user;
+  return rest;
+};
 
 const parseUserId = (authorization?: string, xUserId?: string) => {
   if (xUserId) {

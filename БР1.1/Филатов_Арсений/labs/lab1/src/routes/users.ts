@@ -1,9 +1,8 @@
 import { Elysia, t } from "elysia";
 import { ApiError, UserPublic } from "../schemas";
 import { db } from "../db/client";
-import { getAuthUser } from "../lib/auth";
+import { getAuthUser, userWithoutPassword } from "../lib/auth";
 import { apiError } from "../lib/errors";
-import { mapUserPublic } from "../lib/mappers";
 
 export const usersRoutes = new Elysia({ name: "users" })
   .get(
@@ -14,7 +13,7 @@ export const usersRoutes = new Elysia({ name: "users" })
         set.status = 401;
         return apiError("UNAUTHORIZED", "Пользователь не авторизован");
       }
-      return mapUserPublic(user);
+      return userWithoutPassword(user);
     },
     {
       detail: {
@@ -54,7 +53,7 @@ export const usersRoutes = new Elysia({ name: "users" })
         },
         include: { role: true },
       });
-      return mapUserPublic(updated);
+      return userWithoutPassword(updated);
     },
     {
       detail: {

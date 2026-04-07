@@ -2,9 +2,8 @@ import { Elysia, t } from "elysia";
 import { ApiError, TokenPair, UserPublic } from "../schemas";
 import { compareSync, hashSync } from "bcryptjs";
 import { db } from "../db/client";
-import { createAccessToken, createRefreshToken } from "../lib/auth";
+import { createAccessToken, createRefreshToken, userWithoutPassword } from "../lib/auth";
 import { apiError } from "../lib/errors";
-import { mapUserPublic } from "../lib/mappers";
 
 export const authRoutes = new Elysia({ name: "auth" }).group("/auth", (app) =>
   app
@@ -45,7 +44,7 @@ export const authRoutes = new Elysia({ name: "auth" }).group("/auth", (app) =>
 
         set.status = 201;
         return {
-          user: mapUserPublic(user),
+          user: userWithoutPassword(user),
           accessToken,
           refreshToken,
           tokenType: "Bearer" as const,
@@ -100,7 +99,7 @@ export const authRoutes = new Elysia({ name: "auth" }).group("/auth", (app) =>
         });
 
         return {
-          user: mapUserPublic(user),
+          user: userWithoutPassword(user),
           accessToken,
           refreshToken,
           tokenType: "Bearer" as const,

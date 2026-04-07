@@ -7,6 +7,25 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum EmploymentType {
+  full_time
+  part_time
+  contract
+}
+
+enum VacancyStatus {
+  draft
+  published
+  closed
+}
+
+enum ApplicationStatus {
+  new
+  viewed
+  rejected
+  invited
+}
+
 model Role {
   id    Int    @id @default(autoincrement())
   code  String @unique
@@ -151,8 +170,8 @@ model Vacancy {
   salaryMin         Int?
   salaryMax         Int?
   currency          String
-  employmentType    String
-  status            String
+  employmentType    EmploymentType
+  status            VacancyStatus
   publishedAt       DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -173,12 +192,12 @@ model VacancySkill {
 }
 
 model Application {
-  id        Int      @id @default(autoincrement())
+  id        Int               @id @default(autoincrement())
   vacancyId Int
   userId    Int
   resumeId  Int
-  status    String
-  createdAt DateTime @default(now())
+  status    ApplicationStatus
+  createdAt DateTime          @default(now())
   vacancy   Vacancy  @relation(fields: [vacancyId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   resume    Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)

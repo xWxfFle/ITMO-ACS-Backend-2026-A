@@ -18,20 +18,20 @@ export const TokenPair = t.Object({
   expiresIn: t.Number({ description: "Срок жизни токена в секундах" }),
 });
 
-export const RoleCode = t.Union([
-  t.Literal("candidate"),
-  t.Literal("employer"),
-  t.Literal("admin"),
-]);
+export const RoleDto = t.Object({
+  id: t.Number(),
+  code: t.String({ description: "Код роли в БД (candidate | employer | admin)" }),
+  name: t.String(),
+});
 
 export const UserPublic = t.Object({
   id: t.Number(),
   email: t.String({ format: "email" }),
   roleId: t.Number(),
-  roleCode: RoleCode,
   isActive: t.Boolean(),
-  createdAt: t.String({ format: "date-time" }),
-  updatedAt: t.String({ format: "date-time" }),
+  createdAt: t.Date(),
+  updatedAt: t.Date(),
+  role: RoleDto,
 });
 
 export const JobSeekerProfileDto = t.Object({
@@ -125,15 +125,15 @@ export const VacancyDto = t.Object({
   experienceLevelId: t.Number(),
   title: t.String(),
   description: t.String(),
-  requirements: t.Optional(t.String()),
-  salaryMin: t.Optional(t.Number()),
-  salaryMax: t.Optional(t.Number()),
+  requirements: t.Union([t.String(), t.Null()]),
+  salaryMin: t.Union([t.Number(), t.Null()]),
+  salaryMax: t.Union([t.Number(), t.Null()]),
   currency: t.String(),
   employmentType: EmploymentType,
   status: VacancyStatus,
-  publishedAt: t.Optional(t.String({ format: "date-time" })),
-  createdAt: t.String({ format: "date-time" }),
-  updatedAt: t.String({ format: "date-time" }),
+  publishedAt: t.Union([t.Date(), t.Null()]),
+  createdAt: t.Date(),
+  updatedAt: t.Date(),
 });
 
 export const VacancyListItem = t.Object({
@@ -141,13 +141,13 @@ export const VacancyListItem = t.Object({
   companyId: t.Number(),
   companyName: t.String(),
   title: t.String(),
-  salaryMin: t.Optional(t.Number()),
-  salaryMax: t.Optional(t.Number()),
+  salaryMin: t.Union([t.Number(), t.Null()]),
+  salaryMax: t.Union([t.Number(), t.Null()]),
   currency: t.String(),
   industryId: t.Number(),
   experienceLevelId: t.Number(),
   status: VacancyStatus,
-  publishedAt: t.Optional(t.String({ format: "date-time" })),
+  publishedAt: t.Union([t.Date(), t.Null()]),
 });
 
 export const ApplicationStatus = t.Union([
@@ -163,7 +163,7 @@ export const ApplicationDto = t.Object({
   userId: t.Number(),
   resumeId: t.Number(),
   status: ApplicationStatus,
-  createdAt: t.String({ format: "date-time" }),
+  createdAt: t.Date(),
 });
 
 export const paginated = <S extends TSchema>(itemSchema: S) =>

@@ -3,7 +3,22 @@ import { ApiError, ApplicationDto, paginated } from "../schemas";
 import { db } from "../db/client";
 import { getAuthUser } from "../lib/auth";
 import { apiError } from "../lib/errors";
-import { mapApplication } from "../lib/mappers";
+
+/** Prisma иногда выводит enum-поля как string; для схемы ответа нужен литеральный union. */
+type ApplicationStatusApi = "new" | "viewed" | "rejected" | "invited";
+
+const asApplicationDto = <
+  T extends {
+    id: number;
+    vacancyId: number;
+    userId: number;
+    resumeId: number;
+    status: string;
+    createdAt: Date;
+  },
+>(
+  row: T
+) => ({ ...row, status: row.status as ApplicationStatusApi });
 
 export const applicationsRoutes = new Elysia({ name: "applications" })
   .post(
@@ -40,7 +55,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
         },
       });
       set.status = 201;
-      return mapApplication(created);
+      return asApplicationDto(created);
     },
     {
       detail: {
@@ -81,7 +96,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
         }),
         db.application.count({ where: { userId: user.id } }),
       ]);
-      return { items: items.map(mapApplication), total, page, pageSize };
+      return { items: items.map(asApplicationDto), total, page, pageSize };
     },
     {
       detail: {
@@ -130,7 +145,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
         }),
         db.application.count({ where: { vacancyId: params.vacancyId } }),
       ]);
-      return { items: items.map(mapApplication), total, page, pageSize };
+      return { items: items.map(asApplicationDto), total, page, pageSize };
     },
     {
       detail: {
@@ -180,7 +195,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
         where: { id: params.applicationId },
         data: { status: body.status },
       });
-      return mapApplication(updated);
+      return asApplicationDto({ ...updated, status: body.status });
     },
     {
       detail: {
