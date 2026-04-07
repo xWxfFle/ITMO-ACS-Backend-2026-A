@@ -1,29 +1,57 @@
 import { Elysia, t } from "elysia";
 import { ApiError, TokenPair, UserPublic } from "../schemas";
-
-const exampleUser = {
-  id: 1,
-  email: "user@example.com",
-  roleId: 1,
-  roleCode: "candidate" as const,
-  isActive: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+import { compareSync, hashSync } from "bcryptjs";
+import { db } from "../db/client";
+import { createAccessToken, createRefreshToken } from "../lib/auth";
+import { apiError } from "../lib/errors";
+import { mapUserPublic } from "../lib/mappers";
 
 export const authRoutes = new Elysia({ name: "auth" }).group("/auth", (app) =>
   app
     .post(
       "/register",
-      () => ({
-        user: exampleUser,
-        ...{
-          accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example",
-          refreshToken: "refresh.example",
+      async ({ body, set }) => {
+        const existing = await db.user.findUnique({ where: { email: body.email } });
+        if (existing) {
+          set.status = 409;
+          return apiError("CONFLICT", "Пользователь с таким email уже существует");
+        }
+
+        const role = await db.role.findUnique({ where: { code: body.roleCode } });
+        if (!role) {
+          set.status = 400;
+          return apiError("VALIDATION_ERROR", "Некорректная роль");
+        }
+
+        const user = await db.user.create({
+          data: {
+            email: body.email,
+            passwordHash: hashSync(body.password, 10),
+            roleId: role.id,
+            isActive: true,
+          },
+          include: { role: true },
+        });
+
+        const accessToken = createAccessToken(user.id);
+        const refreshToken = createRefreshToken(user.id);
+        await db.refreshToken.create({
+          data: {
+            userId: user.id,
+            token: refreshToken,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        });
+
+        set.status = 201;
+        return {
+          user: mapUserPublic(user),
+          accessToken,
+          refreshToken,
           tokenType: "Bearer" as const,
-          expiresIn: 3600,
-        },
-      }),
+          expiresIn: Number(process.env.JWT_EXPIRES_IN ?? 3600),
+        };
+      },
       {
         detail: {
           summary: "Регистрация",
@@ -51,13 +79,34 @@ export const authRoutes = new Elysia({ name: "auth" }).group("/auth", (app) =>
     )
     .post(
       "/login",
-      () => ({
-        user: exampleUser,
-        accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example",
-        refreshToken: "refresh.example",
-        tokenType: "Bearer" as const,
-        expiresIn: 3600,
-      }),
+      async ({ body, set }) => {
+        const user = await db.user.findUnique({
+          where: { email: body.email },
+          include: { role: true },
+        });
+        if (!user || !compareSync(body.password, user.passwordHash)) {
+          set.status = 401;
+          return apiError("UNAUTHORIZED", "Неверный email или пароль");
+        }
+
+        const accessToken = createAccessToken(user.id);
+        const refreshToken = createRefreshToken(user.id);
+        await db.refreshToken.create({
+          data: {
+            userId: user.id,
+            token: refreshToken,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        });
+
+        return {
+          user: mapUserPublic(user),
+          accessToken,
+          refreshToken,
+          tokenType: "Bearer" as const,
+          expiresIn: Number(process.env.JWT_EXPIRES_IN ?? 3600),
+        };
+      },
       {
         detail: {
           summary: "Вход",
@@ -83,12 +132,34 @@ export const authRoutes = new Elysia({ name: "auth" }).group("/auth", (app) =>
     )
     .post(
       "/refresh",
-      () => ({
-        accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refreshed",
-        refreshToken: "refresh.new",
-        tokenType: "Bearer" as const,
-        expiresIn: 3600,
-      }),
+      async ({ body, set }) => {
+        const existing = await db.refreshToken.findUnique({
+          where: { token: body.refreshToken },
+        });
+
+        if (!existing || existing.expiresAt < new Date()) {
+          set.status = 401;
+          return apiError("UNAUTHORIZED", "Refresh token недействителен");
+        }
+
+        const accessToken = createAccessToken(existing.userId);
+        const refreshToken = createRefreshToken(existing.userId);
+        await db.refreshToken.delete({ where: { token: body.refreshToken } });
+        await db.refreshToken.create({
+          data: {
+            userId: existing.userId,
+            token: refreshToken,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          },
+        });
+
+        return {
+          accessToken,
+          refreshToken,
+          tokenType: "Bearer" as const,
+          expiresIn: Number(process.env.JWT_EXPIRES_IN ?? 3600),
+        };
+      },
       {
         detail: {
           summary: "Обновление access-токена",

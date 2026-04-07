@@ -8,5 +8,8 @@
 
 ```bash
 bun install
+bun run db:up
+bun run db:migrate --name init
+bun run db:seed
 bun run dev
 ```

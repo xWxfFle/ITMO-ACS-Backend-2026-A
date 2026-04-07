@@ -1,20 +1,21 @@
 import { Elysia, t } from "elysia";
 import { ApiError, UserPublic } from "../schemas";
-
-const me = {
-  id: 1,
-  email: "user@example.com",
-  roleId: 1,
-  roleCode: "candidate" as const,
-  isActive: true,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+import { db } from "../db/client";
+import { getAuthUser } from "../lib/auth";
+import { apiError } from "../lib/errors";
+import { mapUserPublic } from "../lib/mappers";
 
 export const usersRoutes = new Elysia({ name: "users" })
   .get(
     "/me",
-    () => me,
+    async ({ headers, set }) => {
+      const user = await getAuthUser(headers as Record<string, string | undefined>);
+      if (!user) {
+        set.status = 401;
+        return apiError("UNAUTHORIZED", "Пользователь не авторизован");
+      }
+      return mapUserPublic(user);
+    },
     {
       detail: {
         summary: "Текущий пользователь",
@@ -30,7 +31,31 @@ export const usersRoutes = new Elysia({ name: "users" })
   )
   .patch(
     "/me",
-    ({ body }) => ({ ...me, ...body, updatedAt: new Date().toISOString() }),
+    async ({ body, headers, set }) => {
+      const user = await getAuthUser(headers as Record<string, string | undefined>);
+      if (!user) {
+        set.status = 401;
+        return apiError("UNAUTHORIZED", "Пользователь не авторизован");
+      }
+
+      if (body.email) {
+        const existing = await db.user.findUnique({ where: { email: body.email } });
+        if (existing && existing.id !== user.id) {
+          set.status = 409;
+          return apiError("CONFLICT", "Email уже используется");
+        }
+      }
+
+      const updated = await db.user.update({
+        where: { id: user.id },
+        data: {
+          email: body.email ?? undefined,
+          isActive: body.isActive ?? undefined,
+        },
+        include: { role: true },
+      });
+      return mapUserPublic(updated);
+    },
     {
       detail: {
         summary: "Обновление email / активности",

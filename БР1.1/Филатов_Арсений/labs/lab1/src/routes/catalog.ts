@@ -6,12 +6,13 @@ import {
   SkillDto,
   paginated,
 } from "../schemas";
+import { db } from "../db/client";
 
 export const catalogRoutes = new Elysia({ name: "catalog" })
   .get(
     "/industries",
-    () => ({
-      items: [{ id: 1, name: "IT" }],
+    async () => ({
+      items: await db.industry.findMany({ orderBy: { id: "asc" } }),
     }),
     {
       detail: {
@@ -25,11 +26,8 @@ export const catalogRoutes = new Elysia({ name: "catalog" })
   )
   .get(
     "/experience-levels",
-    () => ({
-      items: [
-        { id: 1, code: "junior", name: "Junior", sortOrder: 10 },
-        { id: 2, code: "middle", name: "Middle", sortOrder: 20 },
-      ],
+    async () => ({
+      items: await db.experienceLevel.findMany({ orderBy: { sortOrder: "asc" } }),
     }),
     {
       detail: {
@@ -44,12 +42,30 @@ export const catalogRoutes = new Elysia({ name: "catalog" })
   )
   .get(
     "/skills",
-    ({ query }) => ({
-      items: [{ id: 1, name: "TypeScript" }],
-      total: 1,
-      page: query.page ?? 1,
-      pageSize: query.pageSize ?? 20,
-    }),
+    async ({ query }) => {
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
+      const where = query.q
+        ? {
+            name: {
+              contains: query.q,
+              mode: "insensitive" as const,
+            },
+          }
+        : {};
+
+      const [items, total] = await Promise.all([
+        db.skill.findMany({
+          where,
+          orderBy: { name: "asc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        db.skill.count({ where }),
+      ]);
+
+      return { items, total, page, pageSize };
+    },
     {
       detail: {
         summary: "Каталог навыков",

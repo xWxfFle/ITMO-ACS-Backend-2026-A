@@ -6,48 +6,54 @@ import {
   VacancyListItem,
   paginated,
 } from "../schemas";
-
-const vacancy = {
-  id: 1,
-  companyId: 1,
-  industryId: 1,
-  experienceLevelId: 2,
-  title: "Middle Backend",
-  description: "Разработка API",
-  requirements: "TypeScript, PostgreSQL",
-  salaryMin: 150000,
-  salaryMax: 250000,
-  currency: "RUB",
-  employmentType: "full_time" as const,
-  status: "published" as const,
-  publishedAt: new Date().toISOString(),
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
+import { db } from "../db/client";
+import { getAuthUser } from "../lib/auth";
+import { apiError } from "../lib/errors";
+import { mapVacancy } from "../lib/mappers";
 
 export const vacanciesRoutes = new Elysia({ name: "vacancies" })
   .get(
     "/vacancies",
-    ({ query }) => ({
-      items: [
-        {
-          id: 1,
-          companyId: 1,
-          companyName: "ООО Ромашка",
-          title: "Middle Backend",
-          salaryMin: 150000,
-          salaryMax: 250000,
-          currency: "RUB",
-          industryId: 1,
-          experienceLevelId: 2,
-          status: "published" as const,
-          publishedAt: new Date().toISOString(),
-        },
-      ],
-      total: 1,
-      page: query.page ?? 1,
-      pageSize: query.pageSize ?? 20,
-    }),
+    async ({ query }) => {
+      const page = query.page ?? 1;
+      const pageSize = query.pageSize ?? 20;
+      const where = {
+        industryId: query.industryId ?? undefined,
+        experienceLevelId: query.experienceLevelId ?? undefined,
+        salaryMin: query.salaryMin ? { gte: query.salaryMin } : undefined,
+        salaryMax: query.salaryMax ? { lte: query.salaryMax } : undefined,
+        title: query.q ? { contains: query.q, mode: "insensitive" as const } : undefined,
+      };
+      const [items, total] = await Promise.all([
+        db.vacancy.findMany({
+          where,
+          include: { company: true },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          orderBy: { id: "desc" },
+        }),
+        db.vacancy.count({ where }),
+      ]);
+
+      return {
+        items: items.map((v) => ({
+          id: v.id,
+          companyId: v.companyId,
+          companyName: v.company.name,
+          title: v.title,
+          salaryMin: v.salaryMin ?? undefined,
+          salaryMax: v.salaryMax ?? undefined,
+          currency: v.currency,
+          industryId: v.industryId,
+          experienceLevelId: v.experienceLevelId,
+          status: v.status as "draft" | "published" | "closed",
+          publishedAt: v.publishedAt?.toISOString(),
+        })),
+        total,
+        page,
+        pageSize,
+      };
+    },
     {
       detail: {
         summary: "Поиск вакансий",
@@ -72,7 +78,14 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
   )
   .get(
     "/vacancies/:vacancyId",
-    ({ params }) => ({ ...vacancy, id: params.vacancyId }),
+    async ({ params, set }) => {
+      const vacancy = await db.vacancy.findUnique({ where: { id: params.vacancyId } });
+      if (!vacancy) {
+        set.status = 404;
+        return apiError("NOT_FOUND", "Вакансия не найдена");
+      }
+      return mapVacancy(vacancy);
+    },
     {
       detail: {
         summary: "Детали вакансии",
@@ -87,21 +100,40 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
   )
   .post(
     "/companies/:companyId/vacancies",
-    ({ params, body }) => ({
-      ...vacancy,
-      id: 2,
-      companyId: params.companyId,
-      title: body.title,
-      description: body.description,
-      requirements: body.requirements,
-      salaryMin: body.salaryMin,
-      salaryMax: body.salaryMax,
-      currency: body.currency,
-      employmentType: body.employmentType,
-      industryId: body.industryId,
-      experienceLevelId: body.experienceLevelId,
-      status: body.status ?? "draft",
-    }),
+    async ({ params, body, headers, set }) => {
+      const user = await getAuthUser(headers as Record<string, string | undefined>);
+      if (!user) {
+        set.status = 401;
+        return apiError("UNAUTHORIZED", "Пользователь не авторизован");
+      }
+
+      const membership = await db.employerMembership.findUnique({
+        where: { userId_companyId: { userId: user.id, companyId: params.companyId } },
+      });
+      if (!membership) {
+        set.status = 403;
+        return apiError("FORBIDDEN", "Нет доступа к компании");
+      }
+
+      const created = await db.vacancy.create({
+        data: {
+          companyId: params.companyId,
+          title: body.title,
+          description: body.description,
+          requirements: body.requirements,
+          salaryMin: body.salaryMin,
+          salaryMax: body.salaryMax,
+          currency: body.currency,
+          employmentType: body.employmentType,
+          industryId: body.industryId,
+          experienceLevelId: body.experienceLevelId,
+          status: body.status ?? "draft",
+          publishedAt: body.status === "published" ? new Date() : null,
+        },
+      });
+      set.status = 201;
+      return mapVacancy(created);
+    },
     {
       detail: {
         summary: "Создать вакансию",
@@ -137,12 +169,35 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
   )
   .patch(
     "/vacancies/:vacancyId",
-    ({ params, body }) => ({
-      ...vacancy,
-      id: params.vacancyId,
-      ...body,
-      updatedAt: new Date().toISOString(),
-    }),
+    async ({ params, body, headers, set }) => {
+      const user = await getAuthUser(headers as Record<string, string | undefined>);
+      if (!user) {
+        set.status = 401;
+        return apiError("UNAUTHORIZED", "Пользователь не авторизован");
+      }
+      const existing = await db.vacancy.findUnique({ where: { id: params.vacancyId } });
+      if (!existing) {
+        set.status = 404;
+        return apiError("NOT_FOUND", "Вакансия не найдена");
+      }
+      const membership = await db.employerMembership.findUnique({
+        where: { userId_companyId: { userId: user.id, companyId: existing.companyId } },
+      });
+      if (!membership) {
+        set.status = 403;
+        return apiError("FORBIDDEN", "Нет доступа к вакансии");
+      }
+
+      const updated = await db.vacancy.update({
+        where: { id: params.vacancyId },
+        data: {
+          ...body,
+          publishedAt:
+            body.status === "published" && !existing.publishedAt ? new Date() : undefined,
+        },
+      });
+      return mapVacancy(updated);
+    },
     {
       detail: {
         summary: "Обновить вакансию",
@@ -180,7 +235,27 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
   )
   .delete(
     "/vacancies/:vacancyId",
-    ({ params }) => ({ deleted: true, id: params.vacancyId }),
+    async ({ params, headers, set }) => {
+      const user = await getAuthUser(headers as Record<string, string | undefined>);
+      if (!user) {
+        set.status = 401;
+        return apiError("UNAUTHORIZED", "Пользователь не авторизован");
+      }
+      const existing = await db.vacancy.findUnique({ where: { id: params.vacancyId } });
+      if (!existing) {
+        set.status = 404;
+        return apiError("NOT_FOUND", "Вакансия не найдена");
+      }
+      const membership = await db.employerMembership.findUnique({
+        where: { userId_companyId: { userId: user.id, companyId: existing.companyId } },
+      });
+      if (!membership) {
+        set.status = 403;
+        return apiError("FORBIDDEN", "Нет доступа к вакансии");
+      }
+      await db.vacancy.delete({ where: { id: params.vacancyId } });
+      return { deleted: true, id: params.vacancyId };
+    },
     {
       detail: {
         summary: "Удалить вакансию (или закрыть)",
@@ -198,11 +273,36 @@ export const vacanciesRoutes = new Elysia({ name: "vacancies" })
   )
   .put(
     "/vacancies/:vacancyId/skills",
-    ({ params, body }) => ({
-      vacancyId: params.vacancyId,
-      skillIds: body.skillIds,
-      skills: body.skillIds.map((id) => ({ id, name: "Skill" })),
-    }),
+    async ({ params, body, headers, set }) => {
+      const user = await getAuthUser(headers as Record<string, string | undefined>);
+      if (!user) {
+        set.status = 401;
+        return apiError("UNAUTHORIZED", "Пользователь не авторизован");
+      }
+      const vacancy = await db.vacancy.findUnique({ where: { id: params.vacancyId } });
+      if (!vacancy) {
+        set.status = 404;
+        return apiError("NOT_FOUND", "Вакансия не найдена");
+      }
+      const membership = await db.employerMembership.findUnique({
+        where: { userId_companyId: { userId: user.id, companyId: vacancy.companyId } },
+      });
+      if (!membership) {
+        set.status = 403;
+        return apiError("FORBIDDEN", "Нет доступа к вакансии");
+      }
+
+      await db.vacancySkill.deleteMany({ where: { vacancyId: params.vacancyId } });
+      if (body.skillIds.length) {
+        await db.vacancySkill.createMany({
+          data: body.skillIds.map((skillId) => ({ vacancyId: params.vacancyId, skillId })),
+          skipDuplicates: true,
+        });
+      }
+
+      const skills = await db.skill.findMany({ where: { id: { in: body.skillIds } } });
+      return { vacancyId: params.vacancyId, skillIds: body.skillIds, skills };
+    },
     {
       detail: {
         summary: "Заменить требуемые навыки вакансии",

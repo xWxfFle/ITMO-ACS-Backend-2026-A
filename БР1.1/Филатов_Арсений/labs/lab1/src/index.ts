@@ -20,7 +20,7 @@ const app = new Elysia()
       .use(vacanciesRoutes)
       .use(applicationsRoutes)
   )
-  .listen(3000);
+  .listen(Number(process.env.PORT ?? 3000));
 
 console.log(
   `Elysia: http://${app.server?.hostname}:${app.server?.port} - OpenAPI: http://${app.server?.hostname}:${app.server?.port}/openapi`
