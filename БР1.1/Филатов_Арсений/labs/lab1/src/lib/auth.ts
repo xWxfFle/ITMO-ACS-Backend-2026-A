@@ -16,7 +16,7 @@ const getSecretKey = () => {
   const raw = process.env.JWT_SECRET;
   if (!raw || raw.length < 32) {
     throw new Error(
-      "JWT_SECRET не задан или короче 32 символов. Укажите надёжный секрет в .env (см. .env.example)."
+      "JWT_SECRET не задан или короче 32 символов"
     );
   }
   return new TextEncoder().encode(raw);

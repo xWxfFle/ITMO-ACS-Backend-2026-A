@@ -3,8 +3,10 @@
   "private": true,
   "workspaces": ["packages/*", "services/*", "gateway"],
   "scripts": {
-    "db:up": "docker compose up -d postgres",
+    "db:up": "docker compose up -d postgres rabbitmq",
     "db:down": "docker compose down",
+    "compose:build": "docker compose build",
+    "compose:up": "docker compose up -d --build",
     "dev:all": "concurrently -k -n gateway,auth,catalog,jobseeker,employer,application -c auto \"bun run --cwd gateway dev\" \"bun run --cwd services/auth dev\" \"bun run --cwd services/catalog dev\" \"bun run --cwd services/jobseeker dev\" \"bun run --cwd services/employer dev\" \"bun run --cwd services/application dev\"",
     "dev:auth": "bun run --cwd services/auth dev",
     "dev:catalog": "bun run --cwd services/catalog dev",

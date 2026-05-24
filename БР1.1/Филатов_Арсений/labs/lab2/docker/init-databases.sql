@@ -1,4 +1,3 @@
--- Отдельные БД по сервисам (database-per-service), один экземпляр PostgreSQL.
 CREATE DATABASE lab2_auth;
 CREATE DATABASE lab2_catalog;
 CREATE DATABASE lab2_jobseeker;

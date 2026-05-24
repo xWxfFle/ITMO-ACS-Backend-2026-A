@@ -1,0 +1,33 @@
+name: Deploy lab2 (microservices)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "БР1.1/**"
+      - ".github/workflows/deploy-lab2.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            ROOT="${{ secrets.DEPLOY_REPO_ROOT }}"
+            LAB2_REL="${{ secrets.DEPLOY_LAB2_REL }}"
+            BRANCH='${{ github.ref_name }}'
+            cd "$ROOT"
+            git fetch origin
+            git checkout "$BRANCH"
+            git pull origin "$BRANCH"
+            cd "$ROOT/$LAB2_REL"
+            docker compose pull || true
+            docker compose up -d --build

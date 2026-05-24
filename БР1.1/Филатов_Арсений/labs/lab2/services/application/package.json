@@ -10,6 +10,7 @@
     "db:seed": "bun run prisma/seed.ts"
   },
   "dependencies": {
+    "@lab2/messaging": "workspace:*",
     "@lab2/auth-jwt": "workspace:*",
     "@elysiajs/openapi": "^1.4.14",
     "@prisma/client": "^6.6.0",

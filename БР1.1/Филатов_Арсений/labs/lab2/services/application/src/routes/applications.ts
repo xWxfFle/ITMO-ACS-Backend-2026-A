@@ -3,6 +3,7 @@ import { requireAccessContext } from "@lab2/auth-jwt";
 import { ApiError, ApplicationDto, paginated } from "../schemas";
 import { db } from "../db/client";
 import { apiError } from "../lib/errors";
+import { publishApplicationCreated } from "@lab2/messaging";
 import { employerEmployerAccess, employerGetVacancy, jobseekerResumeOk } from "../lib/upstream";
 
 type ApplicationStatusApi = "new" | "viewed" | "rejected" | "invited";
@@ -33,7 +34,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
   .post(
     "/vacancies/:vacancyId/applications",
     async ({ params, body, headers, set }) => {
-      const ctx = await requireCtx(headers as Record<string, string | undefined>, set);
+      const ctx = await requireCtx(headers as Record<string, string | undefined>, set as { status?: number });
       if (!ctx) return apiError("UNAUTHORIZED", "Пользователь не авторизован");
 
       const vacancy = await employerGetVacancy(params.vacancyId);
@@ -64,6 +65,13 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
           status: "new",
         },
       });
+      void publishApplicationCreated({
+        applicationId: created.id,
+        vacancyId: created.vacancyId,
+        resumeId: created.resumeId,
+        applicantUserId: created.userId,
+        createdAt: created.createdAt.toISOString(),
+      });
       set.status = 201;
       return asApplicationDto(created);
     },
@@ -87,7 +95,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
   .get(
     "/me/applications",
     async ({ query, headers, set }) => {
-      const ctx = await requireCtx(headers as Record<string, string | undefined>, set);
+      const ctx = await requireCtx(headers as Record<string, string | undefined>, set as { status?: number });
       if (!ctx) return apiError("UNAUTHORIZED", "Пользователь не авторизован");
       const page = query.page ?? 1;
       const pageSize = query.pageSize ?? 20;
@@ -118,7 +126,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
   .get(
     "/vacancies/:vacancyId/applications",
     async ({ params, query, headers, set }) => {
-      const ctx = await requireCtx(headers as Record<string, string | undefined>, set);
+      const ctx = await requireCtx(headers as Record<string, string | undefined>, set as { status?: number });
       if (!ctx) return apiError("UNAUTHORIZED", "Пользователь не авторизован");
 
       const vacancy = await employerGetVacancy(params.vacancyId);
@@ -168,7 +176,7 @@ export const applicationsRoutes = new Elysia({ name: "applications" })
   .patch(
     "/applications/:applicationId",
     async ({ params, body, headers, set }) => {
-      const ctx = await requireCtx(headers as Record<string, string | undefined>, set);
+      const ctx = await requireCtx(headers as Record<string, string | undefined>, set as { status?: number });
       if (!ctx) return apiError("UNAUTHORIZED", "Пользователь не авторизован");
 
       const application = await db.application.findUnique({
