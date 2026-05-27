@@ -1,4 +1,3 @@
-# Multi-stage: отдельный target на каждый сервис (ЛР3).
 FROM oven/bun:1 AS deps
 WORKDIR /app
 

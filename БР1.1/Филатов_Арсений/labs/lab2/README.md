@@ -62,15 +62,6 @@ bun run seed:all
 bun run dev:all
 ```
 
-## Postman
-
-- Полная коллекция (**все публичные маршруты через gateway**): [`postman/Lab2_Gateway.postman_collection.json`](postman/Lab2_Gateway.postman_collection.json). Импорт: Postman → **Import** → выбрать файл. Базовый URL: `{{baseUrl}}` → `http://127.0.0.1:3000`.
-- После **Вход candidate** и **Вход employer** скопируйте из ответа поле **`accessToken`** в переменные коллекции **`candidateAccessToken`** и **`employerAccessToken`**. Из ответов создания компании / резюме / вакансии заполните **`companyId`**, **`vacancyId`**, **`resumeId`**, **`applicationId`** или используйте значения после `bun run seed:all`.
-- Переменная **`skillIdsJson`** задаёт массив id навыков для тел PUT (по умолчанию `[1,2]` — совместимо с типовым seed каталога).
-- Перегенерация JSON из скрипта (если меняли роутер): из каталога `labs/lab2` выполнить `node postman/generate-collection.mjs`.
-
-Маршруты **`/internal/...`** не включены: gateway их не проксирует. Очередь событий в проекте — **RabbitMQ**, не Kafka.
-
 ## Контейнеры (ЛР3)
 
 - В корне lab2 один многостадийный [`Dockerfile`](Dockerfile): отдельный **stage** на каждый сервис (`auth`, `catalog`, `jobseeker`, `employer`, `application`, `gateway`). Образы задаются в [`docker-compose.yml`](docker-compose.yml) через `build.target`.
@@ -109,3 +100,6 @@ docker compose exec auth bun run prisma/seed.ts
 | `SSH_PRIVATE_KEY` | приватный ключ, парный к public key в `~/.ssh/authorized_keys` на сервере |
 | `DEPLOY_REPO_ROOT` | абсолютный путь к **корню клона** git на сервере |
 | `DEPLOY_LAB2_REL` | относительный путь от корня репозитория до каталога `lab2` |
+| `JWT_SECRET` | секрет JWT (≥32 символов): передаётся в SSH-сессию и используется `docker compose` для контейнеров |
+| `INTERNAL_SECRET` | общий секрет микросервисов (`x-internal-secret`) |
+| `JWT_EXPIRES_IN` | *опционально* — TTL access-токена в секундах; если секрет не задан, переменную на сервере сбрасываем → дефолт из `docker-compose.yml` |
