@@ -9,7 +9,7 @@ const port = Number(process.env.PORT ?? 3004);
 
 startEmployerApplicationEventsConsumer(async (payload) => {
   console.log(
-    `[employer:rabbitmq] новый отклик applicationId=${payload.applicationId} vacancyId=${payload.vacancyId} userId=${payload.applicantUserId}`
+    `новый отклик applicationId=${payload.applicationId} vacancyId=${payload.vacancyId} userId=${payload.applicantUserId}`
   );
 });
 

@@ -13,14 +13,14 @@ export function startEmployerApplicationEventsConsumer(
 ): void {
   const url = process.env.RABBITMQ_URL?.trim();
   if (!url) {
-    console.warn("[messaging] RABBITMQ_URL не задан, consumer employer отключён");
+    console.warn("RABBITMQ_URL не задан, consumer employer отключён");
     return;
   }
 
   const loop = async (): Promise<void> => {
     try {
       const conn = await amqp.connect(url);
-      conn.on("error", (err) => console.error("[messaging] consumer connection error", err));
+      conn.on("error", (err) => console.error("consumer connection error", err));
 
       const ch = await conn.createChannel();
       await ch.assertExchange(JOB_EVENTS_EXCHANGE, "topic", { durable: true });
@@ -35,14 +35,14 @@ export function startEmployerApplicationEventsConsumer(
           await onApplicationCreated(raw);
           ch.ack(msg);
         } catch (e) {
-          console.error("[messaging] ошибка обработки application.created", e);
+          console.error("ошибка обработки application.created", e);
           ch.nack(msg, false, false);
         }
       });
 
-      console.log("[messaging] employer: consumer готов, очередь", EMPLOYER_APPLICATION_EVENTS_QUEUE);
+      console.log("employer: consumer готов, очередь", EMPLOYER_APPLICATION_EVENTS_QUEUE);
     } catch (e) {
-      console.error("[messaging] consumer: не удалось подключиться к RabbitMQ, повтор через", retryMs, "мс", e);
+      console.error("consumer: не удалось подключиться к RabbitMQ, повтор через", retryMs, "мс", e);
       setTimeout(() => void loop(), retryMs);
     }
   };
